@@ -12,6 +12,7 @@ pub enum PropId {
     UnoJumpInDevice,
     MahjongFanCalculator,
     DoudizhuCardCounter,
+    AutoEggThrower,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -23,7 +24,7 @@ pub enum ShopRarity {
 
 pub struct ShopProp {
     pub id: PropId,
-    pub game: GameKind,
+    pub game: Option<GameKind>,
     pub name: &'static str,
     pub description: &'static str,
     pub rarity: ShopRarity,
@@ -98,7 +99,7 @@ impl ShopAvatarFrame {
 }
 
 impl PropId {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::ObservationLens,
         Self::ShengjiCardCounter,
         Self::ShengjiMissingSuitCard,
@@ -106,13 +107,27 @@ impl PropId {
         Self::UnoJumpInDevice,
         Self::MahjongFanCalculator,
         Self::DoudizhuCardCounter,
+        Self::AutoEggThrower,
     ];
+
+    pub const fn is_consumable(self) -> bool {
+        matches!(self, Self::AutoEggThrower)
+    }
 
     pub const fn definition(self) -> ShopProp {
         match self {
+            Self::AutoEggThrower => ShopProp {
+                id: self,
+                game: None,
+                name: "自动砸蛋器",
+                description: "消耗一个，向选中的玩家在10秒内连续砸出100个鸡蛋。\n在头像互动菜单中使用，可重复购买并永久保存数量。",
+                rarity: Fine,
+                price: 100,
+                duration_seconds: 0,
+            },
             Self::DoudizhuCardCounter => ShopProp {
                 id: self,
-                game: GameKind::Doudizhu,
+                game: Some(GameKind::Doudizhu),
                 name: "记牌器",
                 description: "适用于三人和四人斗地主。记录除自己手牌和公开出牌之外的剩余牌。",
                 rarity: Common,
@@ -121,7 +136,7 @@ impl PropId {
             },
             Self::MahjongFanCalculator => ShopProp {
                 id: self,
-                game: GameKind::Mahjong,
+                game: Some(GameKind::Mahjong),
                 name: "算番卡",
                 description: "在听牌提示中显示当前牌型自摸与和牌的番数。\n不足八番也会显示，花牌不计入八番起和门槛。",
                 rarity: Common,
@@ -130,7 +145,7 @@ impl PropId {
             },
             Self::UnoJumpInDevice => ShopProp {
                 id: self,
-                game: GameKind::Uno,
+                game: Some(GameKind::Uno),
                 name: "抢出器",
                 description: "开启后，在符合抢出规则时自动出牌。\n抢出结果受网络延迟影响，有效期内可随时开关。",
                 rarity: Fine,
@@ -139,7 +154,7 @@ impl PropId {
             },
             Self::QiGui523CardCounter => ShopProp {
                 id: self,
-                game: GameKind::QiGui523,
+                game: Some(GameKind::QiGui523),
                 name: "记牌器",
                 description: "按黑、红、梅、方记录除自己手牌和已出牌外的剩余牌，标亮分牌数量。",
                 rarity: Common,
@@ -148,7 +163,7 @@ impl PropId {
             },
             Self::ObservationLens => ShopProp {
                 id: self,
-                game: GameKind::Texas,
+                game: Some(GameKind::Texas),
                 name: "观局镜",
                 description: "弃牌后，查看仍在对局的玩家胜率。\n仅在弃牌所在下注轮结束后可用，不显示其他玩家的底牌。",
                 rarity: Common,
@@ -157,7 +172,7 @@ impl PropId {
             },
             Self::ShengjiMissingSuitCard => ShopProp {
                 id: self,
-                game: GameKind::Shengji,
+                game: Some(GameKind::Shengji),
                 name: "缺门卡",
                 description: "根据公开跟牌，标记其他玩家已经缺少的副牌花色或主牌。",
                 rarity: Common,
@@ -166,7 +181,7 @@ impl PropId {
             },
             Self::ShengjiCardCounter => ShopProp {
                 id: self,
-                game: GameKind::Shengji,
+                game: Some(GameKind::Shengji),
                 name: "记牌器",
                 description: "记录除自己手牌、已出牌和自己最终埋底以外的剩余牌。",
                 rarity: Common,

@@ -63,6 +63,7 @@ impl From<V6PlayerProfile> for StoredPlayerProfile {
                 blackjack_stats: games.blackjack_stats,
                 doudizhu_stats: games.doudizhu_stats,
             },
+            action_times: Default::default(),
         }
     }
 }
@@ -110,6 +111,7 @@ pub(super) fn decode_archive<T: DeserializeOwned + Into<TexasProfileStats>>(
 mod tests {
     use super::*;
     use crate::player::profile::{LocalPlayerProfile, PROFILE_HEADER};
+    use leocard_protocol::GameActionTimes;
     use std::env::temp_dir;
     use std::fs;
 
@@ -157,7 +159,8 @@ mod tests {
             ))
             .unwrap(),
         );
-        let mut expected = PROFILE_HEADER.to_vec();
+        let mut expected = b"LeoCard/profile/v8\0".to_vec();
+        assert_eq!(PROFILE_HEADER, expected.as_slice());
         expected.extend(
             postcard::to_allocvec(&(
                 key,
@@ -171,6 +174,7 @@ mod tests {
                 &mc_guess,
                 &blackjack,
                 &doudizhu,
+                GameActionTimes::default(),
             ))
             .unwrap(),
         );

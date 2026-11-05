@@ -7,7 +7,7 @@ use std::fs;
 use std::io::ErrorKind;
 
 const FILE_MAGIC: &[u8] = b"LEOCARD-ECONOMY\n";
-pub(super) const FORMAT_VERSION: u16 = 5;
+pub(super) const FORMAT_VERSION: u16 = 6;
 
 #[derive(Clone, Deserialize, Serialize)]
 pub(super) struct EconomyArchive {
@@ -15,6 +15,7 @@ pub(super) struct EconomyArchive {
     pub owned_frames: BTreeSet<AvatarFrameId>,
     pub equipped_frame: AvatarFrameId,
     pub exclusive_frame: Option<AvatarFrameId>,
+    pub consumables: BTreeMap<PropId, u32>,
 }
 
 /// The original v3 wallet payload, reused by later formats.
@@ -48,6 +49,7 @@ impl EconomyArchive {
             owned_frames: BTreeSet::new(),
             equipped_frame: AvatarFrameId::Default,
             exclusive_frame: None,
+            consumables: BTreeMap::new(),
         }
     }
 

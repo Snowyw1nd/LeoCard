@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use leocard_game_common::PlayerId;
-use leocard_protocol::PlayerGameProfiles;
+use leocard_protocol::{GameKind, PlayerGameProfiles};
 use leocard_ui::CustomButtonMotion;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -27,6 +27,19 @@ impl ProfileGameTab {
         (Self::Blackjack, "21 点"),
         (Self::Doudizhu, "斗地主"),
     ];
+
+    pub(crate) const fn kind(self) -> GameKind {
+        match self {
+            Self::QiGui523 => GameKind::QiGui523,
+            Self::Texas => GameKind::Texas,
+            Self::Shengji => GameKind::Shengji,
+            Self::Uno => GameKind::Uno,
+            Self::Mahjong => GameKind::Mahjong,
+            Self::McGuess => GameKind::McGuess,
+            Self::Blackjack => GameKind::Blackjack,
+            Self::Doudizhu => GameKind::Doudizhu,
+        }
+    }
 }
 
 #[derive(Clone)]

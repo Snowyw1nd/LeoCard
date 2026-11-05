@@ -1,13 +1,21 @@
 use super::storage::{EconomyArchive, EconomyLedger, FORMAT_VERSION};
 use leocard_protocol::{AvatarFrameId, ProfileId};
 use serde::Deserialize;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Deserialize)]
 struct V4EconomyArchive {
     ledger: EconomyLedger,
     owned_frames: BTreeSet<AvatarFrameId>,
     equipped_frame: AvatarFrameId,
+}
+
+#[derive(Deserialize)]
+struct V5EconomyArchive {
+    ledger: EconomyLedger,
+    owned_frames: BTreeSet<AvatarFrameId>,
+    equipped_frame: AvatarFrameId,
+    exclusive_frame: Option<AvatarFrameId>,
 }
 
 pub(super) fn decode(
@@ -24,6 +32,14 @@ pub(super) fn decode(
             owned_frames: previous.owned_frames,
             equipped_frame: previous.equipped_frame,
             exclusive_frame: exclusive,
+            consumables: BTreeMap::new(),
+        }),
+        5 => postcard::from_bytes::<V5EconomyArchive>(payload).map(|previous| EconomyArchive {
+            ledger: previous.ledger,
+            owned_frames: previous.owned_frames,
+            equipped_frame: previous.equipped_frame,
+            exclusive_frame: previous.exclusive_frame,
+            consumables: BTreeMap::new(),
         }),
         FORMAT_VERSION => postcard::from_bytes(payload),
         _ => return Err("不支持此钱包版本，原存档已保留".to_owned()),

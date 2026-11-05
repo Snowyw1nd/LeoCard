@@ -1,5 +1,6 @@
 use super::super::super::UiAction;
 use super::super::scroll::{ArchiveEdgeSide, ProfileArchiveEdge};
+use super::super::stats::append_action_time_row;
 use super::super::{
     ProfileGameContent, ProfileGameTab, ProfileGameTabButton, SelectedProfileGameTab, TAB_IDLE,
     blackjack_profile_rows, doudizhu_profile_rows, mahjong_profile_rows, mc_guess_profile_rows,
@@ -148,7 +149,7 @@ impl<'a> ProfileArchive<'a> {
                 ),
             );
         }
-        let rows = match self.selected_game {
+        let mut rows = match self.selected_game {
             ProfileGameTab::Blackjack => {
                 blackjack_profile_rows(self.game_profiles.blackjack.as_ref())
             }
@@ -160,6 +161,12 @@ impl<'a> ProfileArchive<'a> {
             ProfileGameTab::Mahjong => mahjong_profile_rows(self.game_profiles.mahjong.as_ref()),
             ProfileGameTab::McGuess => mc_guess_profile_rows(self.game_profiles.mc_guess.as_ref()),
         };
+        append_action_time_row(
+            &mut rows,
+            self.game_profiles
+                .action_times
+                .get(self.selected_game.kind()),
+        );
         for (label, value) in rows {
             self.add_row(commands, content, label, &value);
         }

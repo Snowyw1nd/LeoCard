@@ -1,3 +1,5 @@
+mod consumables;
+
 use super::rewards::login_day;
 use super::storage::{EconomyArchive, FORMAT_VERSION};
 use super::{PropId, ShopAvatarFrame, migration};
