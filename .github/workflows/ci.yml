@@ -150,6 +150,24 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: cargo build -p leocard-client --release --locked
 
+      - name: Checksum Windows test executable
+        if: runner.os == 'Windows' && !startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash target/debug/leocard.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  leocard.exe" | Set-Content -Encoding ascii target/debug/leocard.exe.sha256
+
+      - name: Upload Windows test executable
+        if: runner.os == 'Windows' && !startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v7
+        with:
+          name: leocard-windows-x86_64-test
+          path: |
+            target/debug/leocard.exe
+            target/debug/leocard.exe.sha256
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Package Linux binary and checksum
         if: runner.os == 'Linux' && startsWith(github.ref, 'refs/tags/v')
         run: |
