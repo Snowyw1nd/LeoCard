@@ -3,6 +3,8 @@ mod automation;
 mod commands;
 mod equity;
 mod lifecycle;
+mod rebuy;
+mod rebuy_receipts;
 mod settlement;
 mod snapshot;
 mod spectator;

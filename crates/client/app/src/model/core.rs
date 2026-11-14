@@ -115,7 +115,8 @@ impl ClientModel {
             ServerEvent::AchievementUnlocked(_)
             | ServerEvent::GameStarted { .. }
             | ServerEvent::RoomInfo(_)
-            | ServerEvent::Notice { .. } => {}
+            | ServerEvent::Notice { .. }
+            | ServerEvent::TexasRebuyResolved { .. } => {}
             ServerEvent::Joined { you } => {
                 self.you = Some(you);
                 self.rejection.value = None;

@@ -28,7 +28,7 @@ pub use hand::{
     evaluate_player_hand,
 };
 pub use profile::TexasProfileStats;
-pub use rating::reference_point_deltas;
+pub use rating::{reference_point_deltas, reference_point_deltas_with_investments};
 pub use rules::{TexasRuleError, TexasRuleSet};
 pub use squid::{
     DEEPSEEK_SQUID_VARIANTS, TexasSquidAwardStatistics, TexasSquidState, TexasSquidTransfer,

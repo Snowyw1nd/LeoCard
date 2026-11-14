@@ -5,9 +5,9 @@ use crate::app::shell::NetworkUiContext;
 use bevy::prelude::*;
 use leocard_client::{ClientModel, LocalPlayerProfile, TcpGameClient};
 use leocard_game_common::PlayerId;
-use leocard_protocol::{GameEventContext, ServerEvent};
+use leocard_protocol::{GameEventContext, GameSnapshot, ServerEvent};
 
-/// Accepted transient server events; independent readers may consume them.
+/// Accepted notifications and local purchase receipts; independent readers may consume them.
 #[derive(Message)]
 pub(crate) struct ServerNotification {
     pub player: Option<PlayerId>,
@@ -44,15 +44,19 @@ pub(super) fn poll_network(
         ) {
             updates.write(GameStateMessage(event.clone()));
         }
-        if !matches!(
-            event,
-            ServerEvent::GameSnapshot(_)
-                | ServerEvent::LobbySnapshot(_)
-                | ServerEvent::RulesSnapshot(_)
-                | ServerEvent::RoomModerationSnapshot(_)
-                | ServerEvent::AvatarData { .. }
-                | ServerEvent::Heartbeat
-        ) {
+        // 同次 poll 的后续快照可能覆盖成功或取消结论，德州快照全部交给钱包核对身份。
+        let texas_snapshot = matches!(event, ServerEvent::GameSnapshot(GameSnapshot::Texas(_)));
+        if texas_snapshot
+            || !matches!(
+                event,
+                ServerEvent::GameSnapshot(_)
+                    | ServerEvent::LobbySnapshot(_)
+                    | ServerEvent::RulesSnapshot(_)
+                    | ServerEvent::RoomModerationSnapshot(_)
+                    | ServerEvent::AvatarData { .. }
+                    | ServerEvent::Heartbeat
+            )
+        {
             notifications.write(ServerNotification {
                 player,
                 event: event.clone(),
@@ -72,12 +76,9 @@ fn sync_local_profile(
     profile: &mut LocalPlayerProfile,
     page_error: &mut PageErrorState,
 ) {
-    let mut changed = model
-        .last_finished_match()
-        .is_some_and(|(match_id, changes)| profile.apply_finished_match(match_id, changes));
-    if let Some(profiles) = model.local_game_profiles() {
-        changed |= profile.sync_game_profiles(profiles);
-    }
+    let changed = model
+        .local_game_profiles()
+        .is_some_and(|profiles| profile.sync_game_profiles(profiles));
     if changed && let Err(error) = profile.save() {
         page_error.error = Some(error);
     }

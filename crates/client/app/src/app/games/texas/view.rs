@@ -1,4 +1,5 @@
 //! 德州扑克牌桌视图。房间、聊天、头像、桌布和按钮资源均复用公共客户端层。
+use super::rebuy::TexasRebuyContext;
 use super::{
     TexasBoardReveal, TexasChipTableState, TexasShowdownSequence, TexasTableLayout, TexasUiAction,
     TexasUiState, add_second_board, add_texas_board_back, add_texas_board_face,
@@ -31,6 +32,7 @@ pub(crate) struct TexasTableVisuals<'a> {
     pub start_game_transition: &'a StartGameSeatTransition,
     pub chip_state: &'a TexasChipTableState,
     pub game_summary: &'a GameSummaryAnimation,
+    pub(super) rebuy: TexasRebuyContext<'a>,
 }
 
 #[expect(
@@ -58,6 +60,7 @@ pub(crate) fn render_texas_table(
         start_game_transition,
         chip_state,
         game_summary,
+        rebuy,
     } = visuals;
     let content = commands.mount(
         root,
@@ -207,7 +210,7 @@ pub(crate) fn render_texas_table(
     }
     render_texas_spectator_drawer(commands, content, game, ui, assets);
     add_texas_showdown_reveal(commands, table, game, assets, game_summary, sequence);
-    add_texas_hand_result(commands, table, game, assets, avatars, game_summary);
+    add_texas_hand_result(commands, table, game, assets, avatars, game_summary, &rebuy);
 
     let local_auto_play = matches!(
         game.phase,

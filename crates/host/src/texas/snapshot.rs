@@ -58,6 +58,7 @@ impl GameSnapshotView for TexasSession {
                 state.player = public.player;
             }
         }
+        snapshot.rebuy = self.rebuy_view();
         if let TexasPhaseView::HandComplete {
             tournament_complete,
             reference_changes,

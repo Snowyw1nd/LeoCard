@@ -3,6 +3,7 @@ mod actions;
 mod fixed_limit_tests;
 mod history;
 mod lifecycle;
+mod rebuy;
 mod runout;
 mod settlement;
 mod sizing;

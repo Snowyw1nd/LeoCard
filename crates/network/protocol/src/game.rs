@@ -238,11 +238,26 @@ pub enum QiGui523Command {
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum TexasCommand {
-    SetAutoPlay { enabled: bool },
-    SetSpectatorWinRates { enabled: bool },
-    UpdateRules { rules: TexasRuleSet },
-    Act { action: TexasAction },
-    ChooseRunout { twice: bool },
+    SetAutoPlay {
+        enabled: bool,
+    },
+    SetSpectatorWinRates {
+        enabled: bool,
+    },
+    UpdateRules {
+        rules: TexasRuleSet,
+    },
+    Act {
+        action: TexasAction,
+    },
+    ChooseRunout {
+        twice: bool,
+    },
+    /// 客户端已预留金币，None 表示拒绝；手号防止迟到请求影响新窗口。
+    ChooseRebuy {
+        hand_number: u32,
+        chips: Option<u32>,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

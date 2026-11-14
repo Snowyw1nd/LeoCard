@@ -69,6 +69,27 @@ pub(crate) fn render_texas_lobby(
         },
         assets,
     );
+    let rebuy_toggled = TexasRuleSet {
+        rebuy: !rules_value.rebuy,
+        ..rules_value
+    };
+    add_rule_config_row(
+        commands,
+        rules_panel,
+        TexasRuleConfigRow {
+            label: "清空补码",
+            value: if rules_value.rebuy {
+                "开启"
+            } else {
+                "关闭"
+            }
+            .to_owned(),
+            help: "所有德州模式均可开启。每人每场仅首次被清空可选补码，1 金币兑换 1 筹码，数量为 1 到初始筹码的一半（向下取整）。本手结算后全体等待 30 秒，所有清空玩家确认才统一生效。任一拒绝、超时或断线即终场，且不收补码费。机器人不补码，补码不算盈利。",
+            previous: can_configure.then_some(rebuy_toggled),
+            next: can_configure.then_some(rebuy_toggled),
+        },
+        assets,
+    );
     let maximum_markers = (connected_count.saturating_sub(1)).min(TexasRuleSet::MAX_PLAYERS - 1);
     add_rule_config_row(
         commands,

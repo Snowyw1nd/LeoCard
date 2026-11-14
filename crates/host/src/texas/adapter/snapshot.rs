@@ -2,7 +2,8 @@ use super::state::{AdapterError, TexasAdapter};
 use leocard_game_common::PlayerId;
 use leocard_protocol::{
     PlayerPublicInfo, TexasBlindView, TexasEquity, TexasPhaseView, TexasPlayerView,
-    TexasPotAwardView, TexasRevealedHand, TexasRunoutVoteView, TexasSnapshot, TexasSquidView,
+    TexasPotAwardView, TexasRebuyPurchase, TexasRevealedHand, TexasRunoutVoteView, TexasSnapshot,
+    TexasSquidView,
 };
 use leocard_texas_holdem::{TexasPhase, TexasSquidTransfer, evaluate_player_hand};
 
@@ -109,6 +110,19 @@ impl TexasAdapter {
             you: recipient,
             host: self.host,
             players,
+            rebuy: None,
+            rebuys: self
+                .game
+                .players()
+                .iter()
+                .filter_map(|state| {
+                    let chips = self.game.rebought_chips(state.id());
+                    (chips > 0).then(|| TexasRebuyPurchase {
+                        player: self.protocol_player(state.id()),
+                        chips,
+                    })
+                })
+                .collect(),
             your_hole_cards: recipient_index
                 .map(|index| self.game.players()[index].hole_cards().to_vec())
                 .unwrap_or_default(),

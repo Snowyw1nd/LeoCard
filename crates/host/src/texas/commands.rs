@@ -202,6 +202,7 @@ impl TexasSession {
         self.match_profile_stats = vec![TexasProfileStats::default(); self.room.players.len()];
         self.record_hand_started();
         self.finished_reference_changes = None;
+        self.rebuy = None;
         self.automatic_action_delay = None;
         self.reset_automatic_action_delay_for_current_turn();
         Ok(())
@@ -290,14 +291,15 @@ impl TexasSession {
     }
 
     pub(super) fn tournament_complete(&self) -> bool {
-        self.game.as_ref().is_some_and(|game| {
-            matches!(game.game().phase(), TexasPhase::Complete(_))
-                && game
-                    .game()
-                    .players()
-                    .iter()
-                    .any(|player| player.stack() == 0)
-        })
+        self.rebuy.is_none()
+            && self.game.as_ref().is_some_and(|game| {
+                matches!(game.game().phase(), TexasPhase::Complete(_))
+                    && game
+                        .game()
+                        .players()
+                        .iter()
+                        .any(|player| player.stack() == 0)
+            })
     }
 }
 
@@ -328,6 +330,9 @@ impl GameCommandHandler for TexasSession {
             TexasCommand::Act { action } => self.act(connection, request_id, action),
             TexasCommand::ChooseRunout { twice } => {
                 self.choose_runout(connection, request_id, twice)
+            }
+            TexasCommand::ChooseRebuy { hand_number, chips } => {
+                self.choose_rebuy(connection, request_id, hand_number, chips)
             }
         }
     }

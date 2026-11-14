@@ -1,0 +1,60 @@
+name: Windows test client
+
+on:
+  push:
+    branches:
+      - dev/feat-preparation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-test-client-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Build self-contained Windows EXE
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: '1'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Select stable Rust
+        shell: pwsh
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          rustc --version
+          cargo --version
+
+      - name: Cache release build
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: Windows-texas-rebuy-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            Windows-texas-rebuy-release-
+
+      - name: Build self-contained release client
+        run: cargo build -p leocard-client --release --locked
+
+      - name: Package EXE and isolated account launchers
+        shell: pwsh
+        run: ./.github/scripts/package-windows-test.ps1
+
+      - name: Upload downloadable Windows test client
+        uses: actions/upload-artifact@v7
+        with:
+          name: leocard-texas-rebuy-windows-x86_64
+          path: artifacts/texas-rebuy-windows-x86_64/*
+          if-no-files-found: error
+          retention-days: 14

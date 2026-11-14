@@ -167,13 +167,10 @@ fn persona_changes_equip_the_new_frame_and_only_keep_departed_frames_if_owned() 
 }
 
 #[test]
-fn old_wallets_restart_and_unknown_or_wrong_identity_archives_are_rejected() {
+fn unsupported_or_wrong_identity_archives_are_rejected_without_resetting() {
     let profile_id = ProfileId([1; 32]);
     for version in [1, 2] {
-        let wallet = migration::decode(version, &[], profile_id, None, 0).unwrap();
-        assert_eq!(wallet.ledger.coins, 0);
-        assert!(wallet.ledger.active_props.is_empty());
-        assert_eq!(wallet.ledger.last_login_day, None);
+        assert!(migration::decode(version, &[], profile_id, None, 0).is_err());
     }
     assert!(migration::decode(FORMAT_VERSION + 1, &[], profile_id, None, 0).is_err());
     let wallet = EconomyArchive::new(ProfileId([2; 32]));

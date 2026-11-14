@@ -1,5 +1,6 @@
+use super::TexasRebuyWallet;
 use crate::app::achievements::AchievementUnlocked;
-use crate::app::runtime::ClientResource;
+use crate::app::runtime::{ClientResource, PageErrorState};
 use bevy::prelude::*;
 use leocard_achievements::AchievementDefinition;
 use leocard_client::{LocalPlayerProfile, PlayerAchievements, PlayerEconomy};
@@ -19,6 +20,8 @@ pub(super) struct PendingRewards {
     baseline: Option<Vec<String>>,
     queue: VecDeque<Reward>,
     observed_settlement: Option<MatchId>,
+    observed_profile_settlement: Option<MatchId>,
+    profile_settlements: VecDeque<(MatchId, Vec<PlayerReferenceChange>)>,
     login_checked: bool,
     retry_after: f32,
     last_error: Option<String>,
@@ -50,11 +53,42 @@ pub(super) fn setup_rewards(
     }
 }
 
+/// 与金币结算一样，整场积分也要等本人补码购买落盘后再入档。
+pub(super) fn sync_finished_profile(
+    client: Option<Res<ClientResource>>,
+    wallet: Res<TexasRebuyWallet>,
+    mut profile: ResMut<LocalPlayerProfile>,
+    mut page_error: ResMut<PageErrorState>,
+    mut pending: ResMut<PendingRewards>,
+) {
+    if let Some(client) = client
+        && let Some((match_id, changes)) = client.0.model().last_finished_match()
+        && pending.observed_profile_settlement != Some(match_id)
+    {
+        pending.observed_profile_settlement = Some(match_id);
+        pending
+            .profile_settlements
+            .push_back((match_id, changes.to_vec()));
+    }
+    if wallet.blocks_rewards() {
+        return;
+    }
+    while let Some((match_id, changes)) = pending.profile_settlements.front() {
+        profile.apply_finished_match(*match_id, changes);
+        if let Err(error) = profile.save() {
+            page_error.error = Some(error);
+            return;
+        }
+        pending.profile_settlements.pop_front();
+    }
+}
+
 pub(super) fn process_rewards(
     mut achievements: MessageReader<AchievementUnlocked>,
     client: Option<Res<ClientResource>>,
     mut economy: ResMut<PlayerEconomy>,
     mut pending: ResMut<PendingRewards>,
+    rebuy: Res<TexasRebuyWallet>,
     time: Res<Time>,
 ) {
     for event in achievements.read() {
@@ -73,7 +107,7 @@ pub(super) fn process_rewards(
         });
     }
     pending.retry_after = (pending.retry_after - time.delta_secs()).max(0.0);
-    if pending.retry_after > 0.0 || economy.error().is_some() {
+    if pending.retry_after > 0.0 || economy.error().is_some() || rebuy.blocks_rewards() {
         return;
     }
     match pending.apply(&mut economy) {

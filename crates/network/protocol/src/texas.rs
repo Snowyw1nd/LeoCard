@@ -48,6 +48,30 @@ pub struct TexasSnapshot {
     pub pot: u32,
     pub phase: TexasPhaseView,
     pub squid: TexasSquidView,
+    /// 本手结算后的补码确认窗口；等待中不能准备下一手或结算整场。
+    pub rebuy: Option<TexasRebuyView>,
+    /// 本场已统一生效的补码，持久保留以供客户端幂等扣费和重连恢复。
+    pub rebuys: Vec<TexasRebuyPurchase>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct TexasRebuyView {
+    pub hand_number: u32,
+    pub remaining_ms: u32,
+    pub maximum_chips: u32,
+    pub choices: Vec<TexasRebuyChoice>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct TexasRebuyChoice {
+    pub player: PlayerId,
+    pub chips: Option<u32>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct TexasRebuyPurchase {
+    pub player: PlayerId,
+    pub chips: u32,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -117,7 +141,7 @@ pub enum TexasPhaseView {
         showdown: bool,
         awards: Vec<TexasPotAwardView>,
         table_winner: Option<PlayerId>,
-        /// 任意玩家筹码归零时，本场比赛立即结束。
+        /// 清空后未能完成全员补码时，本场比赛结束。
         tournament_complete: bool,
         /// 仅整场结束时包含共享参考积分变化。
         reference_changes: Vec<PlayerReferenceChange>,
@@ -144,6 +168,9 @@ pub enum TexasViolation {
     NotChoosingRunout,
     MustChooseRunout,
     RunoutAlreadyChosen,
+    InvalidRebuy,
+    RebuyAlreadyChosen,
+    InsufficientRebuyCoins,
     CannotCheckWhileFacingBet { amount_to_call: u32 },
     NothingToCall,
     RaiseMustExceedCurrentBet { current_bet: u32, target: u32 },
@@ -166,6 +193,9 @@ impl fmt::Display for TexasViolation {
             Self::NotChoosingRunout => "当前不在发牌次数选择阶段",
             Self::MustChooseRunout => "请先选择发一次或发两次",
             Self::RunoutAlreadyChosen => "你已经选择过发牌次数",
+            Self::InvalidRebuy => "当前不能补码或补码数量无效",
+            Self::RebuyAlreadyChosen => "你已经确认过补码",
+            Self::InsufficientRebuyCoins => "金币不足，无法兑换补码筹码",
             Self::CannotCheckWhileFacingBet { .. } => "面对下注时不能过牌",
             Self::NothingToCall => "当前没有需要跟注的筹码",
             Self::RaiseMustExceedCurrentBet { .. } => "加注必须超过当前最高注",

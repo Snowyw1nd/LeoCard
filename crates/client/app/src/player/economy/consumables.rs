@@ -13,7 +13,7 @@ impl EconomyArchive {
             .unwrap_or(0)
             .checked_add(1)
             .ok_or("道具数量已达上限")?;
-        self.ledger.spend(prop.definition().price)?;
+        self.spend(prop.definition().price)?;
         self.consumables.insert(prop, count);
         Ok(())
     }

@@ -1,4 +1,4 @@
-use super::storage::EconomyLedger;
+use super::storage::{EconomyArchive, EconomyLedger};
 use leocard_achievements::{AchievementDefinition, AchievementTier};
 use leocard_protocol::{MatchId, PlayerReferenceChange};
 
@@ -8,6 +8,21 @@ const COINS_PER_POINT: i64 = 5;
 pub(super) fn login_day(unix_seconds: u64) -> u64 {
     // 与成就日期一致，按北京时间的自然日领取。
     unix_seconds.saturating_add(8 * 3600) / 86400
+}
+
+impl EconomyArchive {
+    pub(super) fn settle_match(
+        &mut self,
+        match_id: MatchId,
+        changes: &[PlayerReferenceChange],
+    ) -> bool {
+        let settled = self.ledger.settle_match(match_id, changes);
+        // 与余额归零规则相同，结算最多扣除可用金币，不挪用已确认补码的保障。
+        if settled {
+            self.ledger.coins = self.ledger.coins.max(self.reserved_coins());
+        }
+        settled
+    }
 }
 
 impl EconomyLedger {

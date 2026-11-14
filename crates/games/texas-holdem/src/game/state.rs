@@ -163,6 +163,9 @@ pub enum TexasGameError {
     MustChooseRunout,
     RunoutAlreadyChosen(PlayerId),
     HandStillInProgress,
+    RebuyDisabled,
+    InvalidRebuy,
+    RebuyAlreadyUsed(PlayerId),
     CannotCheckWhileFacingBet {
         amount_to_call: u32,
     },
@@ -217,6 +220,11 @@ impl fmt::Display for TexasGameError {
             Self::RunoutAlreadyChosen(player) => write!(f, "玩家 {:?} 已选择发牌次数", player),
             Self::HandAlreadyComplete => f.write_str("本手牌已经结束"),
             Self::HandStillInProgress => f.write_str("当前手牌尚未结束"),
+            Self::RebuyDisabled => f.write_str("当前规则不允许补码"),
+            Self::InvalidRebuy => {
+                f.write_str("补码须非空且恰好覆盖所有零筹码玩家，每人补入 1 至初始筹码一半")
+            }
+            Self::RebuyAlreadyUsed(player) => write!(f, "玩家 {:?} 本场已经补码", player),
             Self::CannotCheckWhileFacingBet { amount_to_call } => {
                 write!(f, "仍需跟注 {amount_to_call}，不能过牌")
             }
@@ -307,6 +315,8 @@ pub struct TexasGameState {
     pub(super) runout_votes: Vec<(PlayerId, bool)>,
     /// Cumulative actual payments, never decreased by refunds or awards.
     pub(super) paid: Vec<u32>,
+    /// Match-wide extra investment per seat, retained across hands.
+    pub(super) rebought: Vec<u32>,
     pub(super) hand_number: u32,
     pub(crate) statistics: GameStatistics,
     pub(super) squid: TexasSquidState,
@@ -397,6 +407,7 @@ impl TexasGameState {
             runout_voters: Vec::new(),
             runout_votes: Vec::new(),
             paid: vec![0; player_count],
+            rebought: vec![0; player_count],
             hand_number: 0,
             statistics: GameStatistics::new(rules.player_count),
         };

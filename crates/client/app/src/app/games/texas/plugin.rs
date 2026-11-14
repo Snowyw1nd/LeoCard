@@ -2,6 +2,7 @@ use super::betting::{
     focus_texas_raise_input, handle_texas_raise_slider, sync_texas_raise_controls,
     sync_texas_raise_input, sync_texas_raise_value,
 };
+use super::rebuy::{TexasRebuyUiState, sync_rebuy_clock, sync_rebuy_input};
 use super::{
     TexasChipTableState, TexasChipUpdates, TexasHandGuidePlugin, TexasRaiseHoldState, TexasUiState,
     TexasVoiceState, actions, animate_squid_markers, animate_texas_action_feedback,
@@ -27,6 +28,14 @@ impl Plugin for TexasPlugin {
             .insert_resource(TexasRaiseHoldState::default())
             .insert_resource(TexasChipTableState::default())
             .init_resource::<TexasUiState>()
+            .init_resource::<TexasRebuyUiState>()
+            .add_systems(Update, sync_rebuy_clock.in_set(ClientUpdateSet::Sync))
+            .add_systems(
+                PostUpdate,
+                sync_rebuy_input
+                    .after(TextInputSet::Publish)
+                    .before(UiSystems::PostLayout),
+            )
             .add_plugins(TexasHandGuidePlugin)
             .init_resource::<TexasVoiceState>()
             .add_systems(

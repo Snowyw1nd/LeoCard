@@ -4,12 +4,13 @@ use super::super::{
     ConfirmationDialog, CozyButtonVariant, DomainUiAction, PageMotion, PressedUiAction, UiAction,
     UiActionHandler, UiState, dispatch_domain_actions,
 };
+use crate::app::economy::TexasRebuyWallet;
 use crate::app::games::uno::UnoUiState;
 use crate::app::runtime::{ClientResource, PageErrorState};
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use leocard_game_common::PlayerId;
-use leocard_protocol::{ClientCommand, SeatId};
+use leocard_protocol::{ClientCommand, GameSnapshot, SeatId};
 
 #[derive(Clone)]
 pub(crate) enum LobbyUiAction {
@@ -40,6 +41,7 @@ pub(crate) struct LobbyActionContext<'w, 's> {
     page_error: ResMut<'w, PageErrorState>,
     page_motion: ResMut<'w, PageMotion>,
     confirmation: ResMut<'w, ConfirmationDialog>,
+    rebuy_wallet: Res<'w, TexasRebuyWallet>,
     commands: Commands<'w, 's>,
 }
 
@@ -54,6 +56,15 @@ impl UiActionHandler<LobbyActionContext<'_, '_>> for LobbyUiAction {
     fn handle(&self, context: &mut LobbyActionContext<'_, '_>) {
         let client = &mut context.client;
         let ui = &mut context.ui;
+        if matches!(self, Self::ReturnToLobby | Self::PlayAgain)
+            && (context.rebuy_wallet.blocks_rewards()
+                || client.as_deref().is_some_and(|client| {
+                    matches!(client.0.model().game_snapshot(), Some(GameSnapshot::Texas(game)) if game.rebuy.is_some())
+                }))
+        {
+            context.page_error.error = Some("请等待补码确认和钱包同步完成".to_owned());
+            return;
+        }
         match self {
             LobbyUiAction::SelectSeat(seat) => {
                 if let Some(client) = client.as_deref_mut() {

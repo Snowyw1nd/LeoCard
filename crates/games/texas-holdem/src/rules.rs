@@ -24,6 +24,9 @@ pub struct TexasRuleSet {
     /// Offer unanimous runout voting after betting closes before the river.
     #[cfg_attr(feature = "serde", serde(default))]
     pub run_it_twice: bool,
+    /// 每名玩家每场首次清空时，可用金币购买至多初始筹码一半的筹码。
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub rebuy: bool,
     /// DeepSeek squid markers cost 2BB instead of 1BB when squid is enabled.
     pub deepseek_squid_double: bool,
 }
@@ -90,6 +93,7 @@ impl Default for TexasRuleSet {
             fixed_limit: false,
             side_pots: true,
             run_it_twice: false,
+            rebuy: false,
             deepseek_squid_double: false,
         }
     }

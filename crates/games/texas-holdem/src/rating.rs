@@ -5,6 +5,22 @@ use leocard_game_common::ranked_awards;
 /// Profitable players cannot lose points; losing players cannot gain points.
 /// Breaking even always awards zero points.
 pub fn reference_point_deltas(scores: &[u32], starting_chips: u16) -> Option<Vec<i16>> {
+    let investments = vec![u32::from(starting_chips); scores.len()];
+    reference_point_deltas_with_investments(scores, &investments)
+}
+
+/// Reference awards ranked by signed net profit (final stacks minus total investments).
+/// Investments include starting chips and any rebought chips for each player.
+/// Ties take the highest tied rank. Profit cannot lose points, loss cannot gain points,
+/// and breaking even always awards zero. Returns `None` for mismatched lengths or
+/// player counts outside 3–8.
+pub fn reference_point_deltas_with_investments(
+    scores: &[u32],
+    investments: &[u32],
+) -> Option<Vec<i16>> {
+    if scores.len() != investments.len() {
+        return None;
+    }
     let awards: &[i16] = match scores.len() {
         3 => &[3, 0, -3],
         4 => &[4, 2, -2, -4],
@@ -14,12 +30,17 @@ pub fn reference_point_deltas(scores: &[u32], starting_chips: u16) -> Option<Vec
         8 => &[6, 4, 3, 2, -2, -3, -4, -6],
         _ => return None,
     };
-    let mut deltas = ranked_awards(scores, awards)?;
-    for (score, delta) in scores.iter().zip(&mut deltas) {
-        if *score >= u32::from(starting_chips) {
+    let profits = scores
+        .iter()
+        .zip(investments)
+        .map(|(&score, &investment)| i64::from(score) - i64::from(investment))
+        .collect::<Vec<_>>();
+    let mut deltas = ranked_awards(&profits, awards)?;
+    for (profit, delta) in profits.iter().zip(&mut deltas) {
+        if *profit >= 0 {
             *delta = (*delta).max(0);
         }
-        if *score <= u32::from(starting_chips) {
+        if *profit <= 0 {
             *delta = (*delta).min(0);
         }
     }

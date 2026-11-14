@@ -1,6 +1,8 @@
 use super::{TexasSession, merge_texas_profile_stats};
 use crate::features::{HandSettlement, MatchSettlement};
-use leocard_texas_holdem::{TexasPhase, TexasProfileStats, reference_point_deltas};
+use leocard_texas_holdem::{
+    TexasPhase, TexasProfileStats, reference_point_deltas_with_investments,
+};
 
 impl MatchSettlement for TexasSession {
     type Outcome = ();
@@ -19,12 +21,25 @@ impl MatchSettlement for TexasSession {
             .iter()
             .map(|(_, stack)| *stack)
             .collect::<Vec<_>>();
-        let deltas = reference_point_deltas(&scores, game.rules().starting_chips)
+        let investments = game
+            .game()
+            .players()
+            .iter()
+            .map(|player| {
+                u32::from(game.rules().starting_chips) + game.game().rebought_chips(player.id())
+            })
+            .collect::<Vec<_>>();
+        let deltas = reference_point_deltas_with_investments(&scores, &investments)
             .expect("a Texas Hold'em table always contains between three and eight players");
         let settlements = standings
             .iter()
             .zip(deltas)
             .map(|((player, _), delta)| (*player, delta))
+            .collect::<Vec<_>>();
+        let profits = scores
+            .iter()
+            .zip(&investments)
+            .map(|(score, investment)| i64::from(*score) - i64::from(*investment))
             .collect::<Vec<_>>();
         let match_profile_stats = self.match_profile_stats.clone();
         self.room.settle_completed_match_profiles_once(
@@ -37,7 +52,14 @@ impl MatchSettlement for TexasSession {
                     .find_map(|(player, chips)| (*player == player_id).then_some(*chips))
                     .expect("a settlement player has final chips");
                 let current_profile_stats = match_profile_stats.get(usize::from(player_id.0));
-                let placement = 1 + scores.iter().filter(|other| **other > final_chips).count();
+                let index = standings
+                    .iter()
+                    .position(|(player, _)| *player == player_id)
+                    .expect("a settlement player is ranked");
+                let placement = 1 + profits
+                    .iter()
+                    .filter(|other| **other > profits[index])
+                    .count();
                 let aggregate = participant
                     .game_profiles
                     .texas
@@ -78,6 +100,7 @@ impl HandSettlement for TexasSession {
         self.record_completed_hand();
         self.room.prepare_rematch();
         self.automatic_action_delay = None;
+        self.open_rebuy_window();
         if self.tournament_complete() {
             self.commit_match(&());
         }

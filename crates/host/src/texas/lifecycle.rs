@@ -5,8 +5,8 @@ use crate::lifecycle::HostedGameLifecycle;
 use crate::{AutomaticActionDelayState, ConnectionId, Delivery, HostError, RoomSession};
 use leocard_game_common::PlayerId;
 use leocard_protocol::{
-    ClientMessage, GameKind, GameRules, GameViolation, PlayerViolation, RejectReason, RequestId,
-    Revision, RoomId, RoomViolation, ServerEvent,
+    ClientCommand, ClientMessage, GameKind, GameRules, GameViolation, PlayerViolation,
+    RejectReason, RequestId, Revision, RoomId, RoomViolation, ServerEvent,
 };
 use leocard_texas_holdem::{TexasCard, TexasPhase, TexasRuleSet, build_deck};
 use std::time::Duration;
@@ -34,6 +34,8 @@ impl TexasSession {
             rules,
             shuffled_deck: Some(shuffled_deck),
             game: None,
+            rebuy: None,
+            rebuy_receipts: Default::default(),
             match_profile_stats: Vec::new(),
             finished_reference_changes: None,
             automatic_action_delay: None,
@@ -119,13 +121,21 @@ impl TexasSession {
             return Vec::new();
         };
         if self.room.host_connection == Some(connection) {
+            let mut deliveries = if self.abort_rebuy() {
+                self.room.bump_revision();
+                self.broadcast_game(None)
+            } else {
+                Vec::new()
+            };
             self.room.players[index].connected = false;
             self.room.bump_revision();
             self.room.closed = true;
-            return self.room.broadcast_event(None, ServerEvent::RoomClosed);
+            deliveries.extend(self.room.broadcast_event(None, ServerEvent::RoomClosed));
+            return deliveries;
         }
 
         let player = self.room.players[index].id;
+        self.abort_rebuy();
         self.room.players[index].connected = false;
         if let Some(game) = self.game.as_mut() {
             let _ = game.set_connected(player, false);
@@ -155,8 +165,13 @@ impl TexasSession {
     }
 
     pub fn handle(&mut self, connection: ConnectionId, message: ClientMessage) -> Vec<Delivery> {
+        let replay_rebuys = matches!(
+            message.command,
+            ClientCommand::Join(_) | ClientCommand::RequestSnapshot
+        );
         let request_id = message.request_id;
-        let mut deliveries = self.dispatch_with_action_timing(connection, message);
+        let mut deliveries = self.expire_rebuy();
+        deliveries.extend(self.dispatch_with_action_timing(connection, message));
         if !self.room.closed
             && self.game.is_none()
             && self.rules.short_deck
@@ -190,6 +205,9 @@ impl TexasSession {
                     },
                 ));
             }
+        }
+        if replay_rebuys {
+            deliveries.extend(self.replay_rebuy_receipts(connection));
         }
         deliveries
     }
@@ -346,6 +364,7 @@ impl HostedGameLifecycle for TexasSession {
             );
         }
         self.game = None;
+        self.rebuy = None;
         self.match_profile_stats.clear();
         self.automatic_action_delay = None;
         self.room.prepare_lobby();
@@ -371,7 +390,10 @@ impl HostedGameLifecycle for TexasSession {
                 RejectReason::Game(GameViolation::GameNotStarted),
             );
         };
-        if !matches!(game.game().phase(), TexasPhase::Complete(_)) || self.tournament_complete() {
+        if !matches!(game.game().phase(), TexasPhase::Complete(_))
+            || self.tournament_complete()
+            || self.rebuy.is_some()
+        {
             return self.room.reject(
                 connection,
                 request_id,
@@ -435,6 +457,8 @@ impl HostedGameLifecycle for TexasSession {
         if self.room.host_connection == Some(connection) {
             return self.close_room(connection, request_id);
         }
+        self.abort_rebuy();
+        let rebuy_receipts = self.replay_rebuy_receipts(connection);
         let id = self.room.players[index].id;
         let name = self.room.players[index].name.clone();
         self.room.players[index].ready = false;
@@ -454,11 +478,11 @@ impl HostedGameLifecycle for TexasSession {
         self.commit_hand(&was_complete);
         self.reset_automatic_action_delay_for_current_turn();
         self.room.bump_revision();
-        let mut deliveries =
-            vec![
-                self.room
-                    .delivery(connection, Some(request_id), ServerEvent::LeftRoom),
-            ];
+        let mut deliveries = rebuy_receipts;
+        deliveries.push(
+            self.room
+                .delivery(connection, Some(request_id), ServerEvent::LeftRoom),
+        );
         deliveries.extend(
             self.room
                 .broadcast_event(None, ServerEvent::PlayerLeft { name }),
@@ -472,6 +496,28 @@ impl HostedGameLifecycle for TexasSession {
         deliveries
     }
 
+    fn close_room(&mut self, connection: ConnectionId, request_id: RequestId) -> Vec<Delivery> {
+        if self.room.host_connection != Some(connection) {
+            return self.room.reject(
+                connection,
+                request_id,
+                RejectReason::Room(RoomViolation::OnlyHostCanCloseRoom),
+            );
+        }
+        let mut deliveries = if self.abort_rebuy() {
+            self.room.bump_revision();
+            self.broadcast_game(None)
+        } else {
+            Vec::new()
+        };
+        deliveries.extend(
+            self.room
+                .close_room(connection, request_id)
+                .unwrap_or_else(|reason| self.room.reject(connection, request_id, reason)),
+        );
+        deliveries
+    }
+
     fn after_join(&mut self, player: PlayerId) {
         if let Some(game) = self.game.as_mut() {
             let _ = game.set_connected(player, true);
@@ -481,7 +527,8 @@ impl HostedGameLifecycle for TexasSession {
 
 impl GameAutomation for TexasSession {
     fn advance_game_time(&mut self, elapsed: Duration) -> Vec<Delivery> {
-        let mut deliveries = self.advance_automatic_turn(elapsed);
+        let mut deliveries = self.advance_rebuy(elapsed);
+        deliveries.extend(self.advance_automatic_turn(elapsed));
         if self
             .game
             .as_ref()

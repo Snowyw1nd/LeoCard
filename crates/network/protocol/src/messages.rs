@@ -212,6 +212,12 @@ pub enum ServerEvent {
     /// 仅发给被踢出的客户端，收到后停止重连并退出房间。
     KickedFromRoom,
     RoomModerationSnapshot(RoomModerationSnapshot),
+    /// 只投递给真实钱包所有者，不随旁观视角映射。None 表示补码整批取消。
+    TexasRebuyResolved {
+        match_id: MatchId,
+        profile_id: ProfileId,
+        chips: Option<u32>,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

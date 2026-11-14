@@ -1,16 +1,18 @@
 //! This game owns its screen resources, state reconciliation and view assembly.
 
 use super::super::{GameLobbyContext, GameScreen, GameTableContext};
+use super::rebuy::{TexasRebuyContext, TexasRebuyUiState};
 use super::{
     TexasChipTableState, TexasTableVisuals, TexasUiState, render_texas_lobby, render_texas_table,
 };
+use crate::app::economy::TexasRebuyWallet;
 use crate::app::games::{GameActionPrompt, GameUiLifecycle};
 use crate::app::presentation::TableCardMaterial;
 use crate::app::runtime::ClientResource;
 use crate::app::shell::SocialUiState;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
-use leocard_client::ClientPhaseRef;
+use leocard_client::{ClientPhaseRef, PlayerEconomy};
 use leocard_protocol::{GameSnapshot, LobbySnapshot, TexasPhaseView, TexasSnapshot};
 use leocard_ui::UiComposer;
 
@@ -19,6 +21,9 @@ pub(crate) struct TexasScreen<'w> {
     ui: ResMut<'w, TexasUiState>,
     pub(super) chips: Res<'w, TexasChipTableState>,
     card_materials: ResMut<'w, Assets<TableCardMaterial>>,
+    rebuy_ui: Res<'w, TexasRebuyUiState>,
+    rebuy_wallet: Res<'w, TexasRebuyWallet>,
+    economy: Res<'w, PlayerEconomy>,
 }
 
 impl GameScreen for TexasScreen<'_> {
@@ -81,6 +86,12 @@ impl GameScreen for TexasScreen<'_> {
                 start_game_transition: transition,
                 chip_state: &self.chips,
                 game_summary,
+                rebuy: TexasRebuyContext {
+                    client,
+                    wallet: &self.rebuy_wallet,
+                    state: &self.rebuy_ui,
+                    available_coins: self.economy.available_texas_rebuy_coins(game.match_id),
+                },
             },
         );
     }
@@ -88,6 +99,15 @@ impl GameScreen for TexasScreen<'_> {
 
 impl GameActionPrompt for TexasScreen<'_> {
     fn requires_action(&self, game: &Self::Snapshot) -> bool {
+        if let Some(rebuy) = &game.rebuy {
+            return rebuy
+                .choices
+                .iter()
+                .any(|choice| choice.player == game.you && choice.chips.is_none())
+                && !self
+                    .rebuy_wallet
+                    .submitted(game.match_id, rebuy.hand_number);
+        }
         let choosing = matches!(game.phase, TexasPhaseView::ChoosingRunout);
         matches!(
             game.phase,

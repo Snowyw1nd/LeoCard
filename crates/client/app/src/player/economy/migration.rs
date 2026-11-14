@@ -2,7 +2,7 @@ use super::PropId;
 use super::storage::{EconomyArchive, EconomyLedger, FORMAT_VERSION};
 use leocard_protocol::{AvatarFrameId, ProfileId};
 use serde::Deserialize;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 #[derive(Deserialize)]
 struct V4EconomyArchive {
@@ -20,6 +20,15 @@ struct V6EconomyArchive {
     exclusive_frame: Option<AvatarFrameId>,
 }
 
+#[derive(Deserialize)]
+struct V7EconomyArchive {
+    ledger: EconomyLedger,
+    owned_frames: BTreeSet<AvatarFrameId>,
+    equipped_frame: AvatarFrameId,
+    exclusive_frame: Option<AvatarFrameId>,
+    consumables: BTreeMap<PropId, u32>,
+}
+
 pub(super) fn decode(
     version: u16,
     payload: &[u8],
@@ -28,7 +37,8 @@ pub(super) fn decode(
     now: u64,
 ) -> Result<EconomyArchive, String> {
     let mut archive: EconomyArchive = match version {
-        1 | 2 => Ok(EconomyArchive::new(profile_id)),
+        // 旧实现会重置这些版本。没有无损迁移格式时拒绝覆盖原钱包。
+        1 | 2 => return Err("不支持此旧钱包版本的无损迁移，原存档已保留".to_owned()),
         3 => postcard::from_bytes(payload).map(EconomyArchive::with_ledger),
         4 => postcard::from_bytes::<V4EconomyArchive>(payload).map(|previous| EconomyArchive {
             ledger: previous.ledger,
@@ -36,6 +46,7 @@ pub(super) fn decode(
             equipped_frame: previous.equipped_frame,
             exclusive_frame: exclusive,
             consumables: BTreeMap::new(),
+            texas_rebuys: HashMap::new(),
         }),
         5 | 6 => postcard::from_bytes::<V6EconomyArchive>(payload).map(|previous| EconomyArchive {
             ledger: previous.ledger,
@@ -43,6 +54,15 @@ pub(super) fn decode(
             equipped_frame: previous.equipped_frame,
             exclusive_frame: previous.exclusive_frame,
             consumables: BTreeMap::new(),
+            texas_rebuys: HashMap::new(),
+        }),
+        7 => postcard::from_bytes::<V7EconomyArchive>(payload).map(|previous| EconomyArchive {
+            ledger: previous.ledger,
+            owned_frames: previous.owned_frames,
+            equipped_frame: previous.equipped_frame,
+            exclusive_frame: previous.exclusive_frame,
+            consumables: previous.consumables,
+            texas_rebuys: HashMap::new(),
         }),
         FORMAT_VERSION => postcard::from_bytes(payload),
         _ => return Err("不支持此钱包版本，原存档已保留".to_owned()),

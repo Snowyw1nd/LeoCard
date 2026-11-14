@@ -1,14 +1,15 @@
+use super::rebuy::TexasRebuyTransaction;
 use super::{PropId, migration};
 use crate::player::config_file;
 use leocard_protocol::{AvatarFrameId, MatchId, ProfileId};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::io::ErrorKind;
 use std::time::{self, SystemTime};
 
 const FILE_MAGIC: &[u8] = b"LEOCARD-ECONOMY\n";
-pub(super) const FORMAT_VERSION: u16 = 7;
+pub(super) const FORMAT_VERSION: u16 = 8;
 
 pub(super) fn unix_seconds() -> u64 {
     SystemTime::now()
@@ -24,6 +25,7 @@ pub(super) struct EconomyArchive {
     pub equipped_frame: AvatarFrameId,
     pub exclusive_frame: Option<AvatarFrameId>,
     pub consumables: BTreeMap<PropId, u32>,
+    pub texas_rebuys: HashMap<MatchId, TexasRebuyTransaction>,
 }
 
 /// The original v3 wallet payload, reused by later formats.
@@ -58,6 +60,7 @@ impl EconomyArchive {
             equipped_frame: AvatarFrameId::Default,
             exclusive_frame: None,
             consumables: BTreeMap::new(),
+            texas_rebuys: HashMap::new(),
         }
     }
 

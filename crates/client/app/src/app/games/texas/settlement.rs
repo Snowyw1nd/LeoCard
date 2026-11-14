@@ -1,4 +1,6 @@
+use super::rebuy::{TexasRebuyContext, add_rebuy_controls};
 use super::screen::TexasScreen;
+use super::standings::tournament_standings;
 use super::{TexasShowdownSequence, add_summary_hands};
 use crate::app::games::GameSummary;
 use crate::app::presentation::{
@@ -24,6 +26,7 @@ pub(super) fn add_texas_hand_result(
     assets: &UiAssets,
     avatars: &AvatarImages,
     animation: &GameSummaryAnimation,
+    rebuy: &TexasRebuyContext<'_>,
 ) {
     let TexasPhaseView::HandComplete {
         showdown,
@@ -265,6 +268,17 @@ pub(super) fn add_texas_hand_result(
                 Visibility::Hidden
             },
         ));
+        add_animated_summary_text(
+            commands,
+            panel,
+            "整场排名 按筹码扣除补码成本 初始成本相同",
+            14.0,
+            MUTED,
+            divider_delay,
+            animation.elapsed,
+            assets,
+        );
+        let final_players = tournament_standings(&game.players, &game.rebuys);
         let standings = spawn_node(
             commands,
             panel,
@@ -280,7 +294,8 @@ pub(super) fn add_texas_hand_result(
             },
             None,
         );
-        for (index, player) in hand_players.iter().enumerate() {
+        for (index, standing) in final_players.iter().enumerate() {
+            let player = standing.player;
             let delay = divider_delay + index as f32 * SUMMARY_ROW_INTERVAL;
             let progress = summary_row_progress(animation.elapsed, delay);
             let row = spawn_node(
@@ -311,7 +326,7 @@ pub(super) fn add_texas_hand_result(
             let name = add_animated_summary_text(
                 commands,
                 row,
-                format!("{}. {}", index + 1, player.player.name),
+                format!("{}. {}", standing.rank, player.player.name),
                 14.5,
                 TEXT,
                 delay,
@@ -330,7 +345,7 @@ pub(super) fn add_texas_hand_result(
             add_animated_summary_text(
                 commands,
                 row,
-                format!("筹码 {}", player.stack),
+                format!("净筹码 {}", standing.net_stack),
                 16.0,
                 ACCENT,
                 delay,
@@ -354,6 +369,11 @@ pub(super) fn add_texas_hand_result(
             }
         }
         row_count += hand_players.len();
+    }
+
+    if game.rebuy.is_some() {
+        add_rebuy_controls(commands, panel, game, rebuy, assets);
+        return;
     }
 
     let actions_delay = SUMMARY_ROW_START_DELAY
@@ -382,15 +402,19 @@ pub(super) fn add_texas_hand_result(
             Visibility::Hidden
         },
     ));
-    if !game
-        .players
-        .iter()
-        .any(|player| player.player.id == game.you)
+    let model = rebuy.client.0.model();
+    if model.is_spectating()
+        || !game
+            .players
+            .iter()
+            .any(|player| Some(player.player.id) == model.you())
     {
         add_cozy_disabled_button(commands, controls, "观战中", assets, px(150), 46.0);
         return;
     }
-    if *tournament_complete {
+    if rebuy.wallet.blocks_rewards() {
+        add_cozy_disabled_button(commands, controls, "钱包同步中", assets, px(150), 46.0);
+    } else if *tournament_complete {
         add_cozy_button_variant(
             commands,
             controls,

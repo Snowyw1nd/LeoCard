@@ -59,6 +59,8 @@ pub(in crate::app::games::texas) fn pot_test_snapshot(
         community: Vec::new(),
         second_community: Vec::new(),
         runout_votes: Vec::new(),
+        rebuy: None,
+        rebuys: Vec::new(),
         draw_pile_len: 52,
         dealer: PlayerId(0),
         small_blind: PlayerId(1),

@@ -1,3 +1,4 @@
+use super::rebuy::TexasRebuyTransaction;
 use super::rewards::login_day;
 use super::storage::{EconomyArchive, unix_seconds};
 use super::{PropId, ShopAvatarFrame};
@@ -41,6 +42,69 @@ impl PlayerEconomy {
         self.archive.ledger.coins
     }
 
+    /// 总余额减去尚未提交的补码预留。
+    pub fn available_coins(&self) -> u32 {
+        self.archive.available_coins()
+    }
+
+    /// 同场预留仍可用于恢复原购买，不应在重连界面中被当作余额不足。
+    pub fn available_texas_rebuy_coins(&self, match_id: MatchId) -> u32 {
+        let reserved = match self.archive.texas_rebuys.get(&match_id) {
+            Some(TexasRebuyTransaction::Reserved(chips)) => *chips,
+            _ => 0,
+        };
+        self.available_coins().saturating_add(reserved)
+    }
+
+    /// 仅读取当前已载入的钱包，不触发存档读取。
+    pub fn pending_texas_rebuys(&self) -> Vec<(MatchId, u32)> {
+        self.archive
+            .texas_rebuys
+            .iter()
+            .filter_map(|(&match_id, transaction)| match transaction {
+                TexasRebuyTransaction::Reserved(chips) => Some((match_id, *chips)),
+                TexasRebuyTransaction::Committed(_) => None,
+            })
+            .collect()
+    }
+
+    /// 确认补码只持久化预留，等待 Host 的全员提交结果。
+    pub fn reserve_texas_rebuy(&mut self, match_id: MatchId, chips: u32) -> Result<(), String> {
+        if matches!(
+            self.archive.texas_rebuys.get(&match_id),
+            Some(TexasRebuyTransaction::Reserved(previous)) if *previous == chips
+        ) {
+            return Ok(());
+        }
+        self.transact(|archive| archive.reserve_texas_rebuy(match_id, chips))
+    }
+
+    /// 释放未提交的预留，不撤销已成功的购买凭据。
+    pub fn cancel_texas_rebuy(&mut self, match_id: MatchId) -> Result<(), String> {
+        if !matches!(
+            self.archive.texas_rebuys.get(&match_id),
+            Some(TexasRebuyTransaction::Reserved(_))
+        ) {
+            return Ok(());
+        }
+        self.transact(|archive| {
+            archive.cancel_texas_rebuy(match_id);
+            Ok(())
+        })
+    }
+
+    /// 根据本人的 Host 成功记录扣款，首次返回 true，重复记录返回 false。
+    /// 支持重连后无本地预留的恢复，已记录的金额不允许改变。
+    pub fn commit_texas_rebuy(&mut self, match_id: MatchId, chips: u32) -> Result<bool, String> {
+        if matches!(
+            self.archive.texas_rebuys.get(&match_id),
+            Some(TexasRebuyTransaction::Committed(previous)) if *previous == chips
+        ) {
+            return Ok(false);
+        }
+        self.transact(|archive| archive.commit_texas_rebuy(match_id, chips))
+    }
+
     pub fn owns_frame(&self, frame: AvatarFrameId) -> bool {
         self.archive.owns_frame(frame)
     }
@@ -78,9 +142,7 @@ impl PlayerEconomy {
             if archive.can_use_frame(frame) {
                 return Err("已可使用这个头像框".to_owned());
             }
-            archive
-                .ledger
-                .spend(ShopAvatarFrame::definition(frame).price)?;
+            archive.spend(ShopAvatarFrame::definition(frame).price)?;
             archive.owned_frames.insert(frame);
             Ok(())
         })
@@ -159,12 +221,15 @@ impl PlayerEconomy {
         {
             return Ok(false);
         }
-        self.transact(|archive| Ok(archive.ledger.settle_match(match_id, changes)))
+        self.transact(|archive| Ok(archive.settle_match(match_id, changes)))
     }
 
     #[cfg(feature = "developer")]
     pub fn set_developer_coins(&mut self, coins: u32) -> Result<(), String> {
         self.transact(|archive| {
+            if coins < archive.reserved_coins() {
+                return Err("余额不能低于已预留金币".to_owned());
+            }
             archive.ledger.coins = coins;
             Ok(())
         })
@@ -225,7 +290,7 @@ impl PlayerEconomy {
 
     fn purchase_until(&mut self, prop: PropId, expires: u64) -> Result<(), String> {
         self.transact(|archive| {
-            archive.ledger.spend(prop.definition().price)?;
+            archive.spend(prop.definition().price)?;
             archive
                 .ledger
                 .active_props
